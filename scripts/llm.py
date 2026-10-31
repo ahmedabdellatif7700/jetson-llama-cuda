@@ -19,9 +19,9 @@ import urllib.request
 
 API_URL = os.environ.get("API_URL", "http://127.0.0.1:8000").rstrip("/")
 API_KEY = os.environ.get("API_KEY", "").strip()
-# Without this Qwen tends to claim it is an OpenAI cloud model.
+# Without this models tend to claim they are a cloud service.
 SYSTEM_PROMPT = (
-    "You are Qwen2.5-Coder 7B, running locally on an NVIDIA Jetson Orin Nano "
+    "You are {model}, running locally on an NVIDIA Jetson Orin Nano "
     "via llama.cpp. No cloud service is involved."
 )
 
@@ -92,9 +92,19 @@ def cmd_ask(args):
     return 0
 
 
+def served_model():
+    """Name of the model llama-server is serving (its --alias), or None."""
+    status, data = call("GET", "/v1/models", timeout=10)
+    if status == 200 and data.get("data"):
+        return data["data"][0]["id"]
+    return None
+
+
 def cmd_chat(args):
-    messages = [{"role": "system", "content": args.system}]
-    print("Chatting with the model. Ctrl+D or /exit to quit, /reset to clear history.")
+    model = served_model() or "a local model"
+    system = args.system or SYSTEM_PROMPT.format(model=model)
+    messages = [{"role": "system", "content": system}]
+    print(f"Chatting with {model}. Ctrl+D or /exit to quit, /reset to clear history.")
     while True:
         try:
             prompt = input("\nyou> ").strip()
@@ -116,7 +126,7 @@ def cmd_chat(args):
                 messages, args.max_tokens, on_token=lambda t: print(t, end="", flush=True)
             )
         except urllib.error.HTTPError as e:
-            # Most likely the 2048-token context is full.
+            # Most likely the context window (CONTEXT_SIZE) is full.
             print(f"\n[HTTP {e.code}: {e.read().decode(errors='replace')}] try /reset")
             messages.pop()
             continue
@@ -200,7 +210,7 @@ def main():
     a.set_defaults(func=cmd_ask)
 
     c = sub.add_parser("chat")
-    c.add_argument("--system", default=SYSTEM_PROMPT)
+    c.add_argument("--system", help="system prompt (default: says which local model it is)")
     c.add_argument("--max-tokens", type=int, default=512)
     c.set_defaults(func=cmd_chat)
 

@@ -21,7 +21,7 @@ PROMPT  ?= Explain CUDA warps briefly.
 TUNNEL_SOCKET := /tmp/jetson-llama-tunnel-$(JETSON).sock
 
 .DEFAULT_GOAL := help
-.PHONY: help build up down restart logs ps wait \
+.PHONY: help build up down restart logs ps wait models \
         tunnel tunnel-start tunnel-stop tunnel-status jetson-up jetson-down jetson-ps jetson-logs \
         health ask chat smoke test clean
 
@@ -52,6 +52,14 @@ ps: ## Show container status and health
 
 wait: ## Block until the API reports the model ready
 	@$(LLM) wait
+
+models: ## List downloaded models (* = selected by MODEL_FILE in .env)
+	@active=$$($(COMPOSE) config | awk '/- \/models\// {sub(".*/models/", ""); print; exit}'); \
+	for f in models/*.gguf; do \
+		name=$$(basename "$$f"); \
+		[ "$$name" = "$$active" ] && mark='*' || mark=' '; \
+		printf ' %s %-45s %s\n' "$$mark" "$$name" "$$(du -h "$$f" | cut -f1)"; \
+	done
 
 test: up smoke ## Bring the stack up, then run the smoke test
 

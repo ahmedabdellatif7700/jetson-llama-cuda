@@ -11,7 +11,7 @@ A CUDA-accelerated [llama.cpp](https://github.com/ggml-org/llama.cpp) Docker env
 - ⚡ **CUDA:** 13.2
 - 🧠 **GPU architecture:** SM 8.7
 - 🦙 **llama.cpp:** Commit `5047748f1`
-- 🤖 **Model:** Qwen2.5-Coder 7B Instruct (Q4_K_M)
+- 🤖 **Models:** Llama 3.2 1B Instruct (default), Qwen2.5-Coder 7B Instruct (both Q4_K_M)
 
 ## 🛠️ Features
 
@@ -32,13 +32,23 @@ The initial CUDA compilation can take a while. Seriously, go make some coffee. �
 
 ## 📁 Models — Feed the Llama 🦙
 
-Create a model directory:
+The default model is **Llama 3.2 1B Instruct (Q4_K_M, ~0.8 GB)**. Download it into `models/`:
 
 ```bash
 mkdir -p models
+curl -L -o models/Llama-3.2-1B-Instruct-Q4_K_M.gguf \
+  https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf
 ```
 
-Place your GGUF model inside `models/`.
+To use a different GGUF model, put it in `models/` and select it in `.env` (see `.env.example`):
+
+```bash
+MODEL_FILE=qwen2.5-coder-7b-instruct-q4_k_m.gguf
+MODEL_NAME=Qwen2.5-Coder 7B Instruct
+CONTEXT_SIZE=2048
+```
+
+Then run `make restart`. `make models` lists what's downloaded and marks the active model.
 
 Model files are excluded from Git because GitHub probably doesn't want your multi-gigabyte llama lunch. 🍽️
 
@@ -46,13 +56,13 @@ Model files are excluded from Git because GitHub probably doesn't want your mult
 
 ```bash
 docker run --rm -it \
-  --name qwen-server \
+  --name llama-server \
   --runtime=nvidia --gpus all \
   --network host \
   -v "$PWD/models:/models:ro" \
   jetson-llama-cuda:local \
-  -m /models/qwen2.5-coder-7b-instruct-q4_k_m.gguf \
-  -ngl 99 -c 2048 \
+  -m /models/Llama-3.2-1B-Instruct-Q4_K_M.gguf \
+  -ngl 99 -c 4096 \
   --host 127.0.0.1 --port 8080
 ```
 
@@ -136,14 +146,15 @@ curl http://localhost:8080/v1/chat/completions \
 
 ## 📊 Performance — Tiny Board, Big Ambitions 💪
 
-Measured using Qwen2.5-Coder 7B Instruct Q4_K_M:
+Measured on a Jetson Orin Nano 8GB, all layers on the GPU, Q4_K_M quantization:
 
-| Metric | Observed |
-|---|---|
-| ⚡ Prompt processing | ~173 tokens/s |
-| 🦙 Token generation | ~11.7 tokens/s |
-| 🧠 Context per slot | 2048 tokens |
-| 🖥️ Platform | Jetson Orin Nano 8GB |
+| Metric | Llama 3.2 1B Instruct | Qwen2.5-Coder 7B Instruct |
+|---|---|---|
+| 📦 Model file | ~0.8 GB | ~4.7 GB |
+| ⚡ Prompt processing | ~565 tokens/s | ~173 tokens/s |
+| 🦙 Token generation | ~49 tokens/s | ~11.7 tokens/s |
+| 🧠 Context | 4096 tokens | 2048 tokens |
+| ⏱️ Model load | ~5 s | ~10 s |
 
 These are illustrative measurements, not standardized benchmarks. Actual performance depends on model, workload, memory, and device configuration.
 
@@ -168,7 +179,7 @@ Before exposing either to other machines or networks, configure appropriate auth
 - ✅ CUDA Docker image builds
 - ✅ NVIDIA container runtime starts successfully
 - ✅ CUDA linking stub resolved from base image
-- ✅ Qwen2.5-Coder 7B inference tested
+- ✅ Llama 3.2 1B and Qwen2.5-Coder 7B inference tested
 - ✅ Dockerized REST API front-end (`docker compose up`) with health check and optional API key
 - 🚧 Further GPU profiling and performance optimization
 

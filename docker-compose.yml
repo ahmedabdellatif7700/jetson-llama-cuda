@@ -8,13 +8,16 @@ services:
     volumes:
       - ./models:/models:ro
     # No published ports: llama-server is reachable only from the api service.
+    # Model selection lives in .env (MODEL_FILE, MODEL_NAME, CONTEXT_SIZE).
     command:
       - -m
-      - /models/qwen2.5-coder-7b-instruct-q4_k_m.gguf
+      - /models/${MODEL_FILE:-Llama-3.2-1B-Instruct-Q4_K_M.gguf}
+      - --alias
+      - ${MODEL_NAME:-Llama 3.2 1B Instruct}
       - -ngl
       - "99"
       - -c
-      - "2048"
+      - "${CONTEXT_SIZE:-4096}"
       - --host
       - 0.0.0.0
       - --port
@@ -35,7 +38,7 @@ services:
     image: jetson-llama-api:local
     environment:
       LLAMA_BASE_URL: http://llama:8080
-      MODEL_NAME: qwen2.5-coder-7b-instruct-q4_k_m
+      MODEL_NAME: ${MODEL_NAME:-Llama 3.2 1B Instruct}
       # Optional: override the default system prompt used by POST /chat.
       SYSTEM_PROMPT: ${SYSTEM_PROMPT:-}
       # Set API_KEY in .env to require the X-API-Key header (leave empty to disable).

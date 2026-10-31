@@ -21,10 +21,10 @@ from pydantic import BaseModel, Field
 
 LLAMA_BASE_URL = os.environ.get("LLAMA_BASE_URL", "http://llama:8080").rstrip("/")
 API_KEY = os.environ.get("API_KEY", "").strip()
-MODEL_NAME = os.environ.get("MODEL_NAME", "qwen2.5-coder-7b-instruct-q4_k_m")
-# Tells the model what it is; without this Qwen tends to claim it is an OpenAI cloud model.
+MODEL_NAME = os.environ.get("MODEL_NAME", "").strip() or "local-model"
+# Tells the model what it is; without this models tend to claim they are a cloud service.
 SYSTEM_PROMPT = os.environ.get("SYSTEM_PROMPT", "").strip() or (
-    "You are Qwen2.5-Coder 7B, running locally on an NVIDIA Jetson Orin Nano "
+    f"You are {MODEL_NAME}, running locally on an NVIDIA Jetson Orin Nano "
     "via llama.cpp. No cloud service is involved."
 )
 
