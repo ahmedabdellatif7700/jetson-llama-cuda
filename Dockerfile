@@ -62,6 +62,12 @@ RUN --mount=type=cache,id=orin-llama-build-132,target=/opt/llama.cpp/build,shari
     mkdir -p /opt/llama-install && \
     cp -a build/bin/. /opt/llama-install/
 
+# curl is used by the compose healthcheck. Installed after the build so
+# adding it does not invalidate the cached llama.cpp layers.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
 # Runtime configuration.
 ENV LD_LIBRARY_PATH=/opt/llama-install
 

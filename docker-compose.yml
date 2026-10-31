@@ -1,0 +1,60 @@
+services:
+  llama:
+    build: .
+    image: jetson-llama-cuda:local
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+    volumes:
+      - ./models:/models:ro
+    # No published ports: llama-server is reachable only from the api service.
+    command:
+      - -m
+      - /models/qwen2.5-coder-7b-instruct-q4_k_m.gguf
+      - -ngl
+      - "99"
+      - -c
+      - "2048"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+    networks:
+      - llama-net
+    restart: unless-stopped
+    # llama-server returns 503 on /health while the model loads, 200 once ready.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+
+  api:
+    build: ./api
+    image: jetson-llama-api:local
+    environment:
+      LLAMA_BASE_URL: http://llama:8080
+      MODEL_NAME: qwen2.5-coder-7b-instruct-q4_k_m
+      # Optional: override the default system prompt used by POST /chat.
+      SYSTEM_PROMPT: ${SYSTEM_PROMPT:-}
+      # Set API_KEY in .env to require the X-API-Key header (leave empty to disable).
+      API_KEY: ${API_KEY:-}
+    # Bind to localhost only; change to 0.0.0.0:8000:8000 to expose on the LAN.
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      llama:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - llama-net
+    restart: unless-stopped
+
+networks:
+  llama-net:
+    driver: bridge

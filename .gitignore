@@ -12,5 +12,9 @@ build/
 *.swo
 *~
 
-# Local CUDA libraries
-cuda-stubs/
+# Local secrets
+.env
+
+# Python
+__pycache__/
+*.pyc

@@ -58,7 +58,70 @@ docker run --rm -it \
 
 The server runs in the foreground. Press `Ctrl+C` when the llama has worked hard enough.
 
-## 🌐 REST API — Talk to the Machine 🤖
+## 🐳 Docker Compose — API + Model in One Command
+
+`docker-compose.yml` runs two services on a private network:
+
+- **`llama`** — the CUDA image above, `llama-server` bound to `0.0.0.0:8080` *inside* the compose network only (no host port published)
+- **`api`** — a small FastAPI front-end (`api/`) published on `127.0.0.1:8000`, the only exposed port
+
+```bash
+docker compose up --build
+```
+
+Both services have healthchecks. `api` waits until `llama` reports healthy (model fully loaded, up to a 3-minute start period), so the first requests don't hit a half-started server. Check progress with `docker compose ps`.
+
+Optionally set an API key (the `api` service then requires an `X-API-Key` header on `/chat` and `/v1/*`):
+
+```bash
+cp .env.example .env   # then edit .env and set API_KEY=...
+```
+
+### API service endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /health` | Public readiness check: `200` once the model is loaded, `503` otherwise (no API key needed) |
+| `POST /chat` | Simple prompt in, text out: `{"prompt": "...", "system": "...", "max_tokens": 256, "temperature": 0.7}` |
+| `/v1/*` | Transparent proxy to llama-server's OpenAI-compatible API, including SSE streaming |
+
+```bash
+# Simple chat
+curl http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{"prompt": "Explain CUDA warps briefly.", "max_tokens": 100}'
+
+# Full OpenAI-compatible endpoint (proxied, streaming supported)
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $API_KEY" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Explain CUDA warps briefly."}
+    ],
+    "max_tokens": 100
+  }'
+```
+
+No cloud required. Just a Jetson, some CUDA cores, and a surprisingly talkative model.
+
+## 💻 From Your Laptop — SSH Tunnel
+
+The API only listens on the Jetson's localhost, so reach it through an SSH tunnel. Clone this repo on the laptop too (only `python3`, `ssh` and `make` are needed there), then:
+
+```bash
+make jetson-up       # start the stack on the Jetson over SSH (no-op if already running)
+make tunnel-start    # background tunnel: laptop localhost:8000 -> Jetson API
+make chat            # interactive chat (or: make ask PROMPT="...", make smoke)
+make tunnel-stop     # close the tunnel
+```
+
+The SSH host defaults to `orinnano8s` (from your `~/.ssh/config`); override with `make tunnel-start JETSON=user@host`. If port 8000 is taken on the laptop, add `LOCAL_PORT=8001` to every command. Run `make` for the full list.
+
+## 🌐 REST API — Talk to the Machine Directly 🤖
+
+Without compose, `llama-server` itself speaks the OpenAI-compatible REST API on port 8080 (see the `docker run` example above):
 
 ```bash
 curl http://localhost:8080/v1/chat/completions \
@@ -70,8 +133,6 @@ curl http://localhost:8080/v1/chat/completions \
     "max_tokens": 100
   }'
 ```
-
-No cloud required. Just a Jetson, some CUDA cores, and a surprisingly talkative model.
 
 ## 📊 Performance — Tiny Board, Big Ambitions 💪
 
@@ -96,9 +157,11 @@ No host driver modifications are required.
 
 ## 🔐 Security — Don't Let Strangers Feed Your Llama
 
-The example server listens on `127.0.0.1` without an API key.
+Both the compose API (published on `127.0.0.1:8000`) and the direct server example (on `127.0.0.1:8080`) bind to localhost only.
 
-Before exposing it to other machines or networks, configure appropriate authentication and network access controls.
+With compose, set `API_KEY` in `.env` to require the `X-API-Key` header; the raw `llama-server` port is not published to the host at all.
+
+Before exposing either to other machines or networks, configure appropriate authentication and network access controls.
 
 ## 🎯 Project Status
 
@@ -106,6 +169,7 @@ Before exposing it to other machines or networks, configure appropriate authenti
 - ✅ NVIDIA container runtime starts successfully
 - ✅ CUDA linking stub resolved from base image
 - ✅ Qwen2.5-Coder 7B inference tested
+- ✅ Dockerized REST API front-end (`docker compose up`) with health check and optional API key
 - 🚧 Further GPU profiling and performance optimization
 
 ---

@@ -1,6 +1,5 @@
 .git
 models/
-cuda-stubs/
 *.gguf
 *.safetensors
 *.log
