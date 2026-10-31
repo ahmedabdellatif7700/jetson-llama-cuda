@@ -1,0 +1,16 @@
+# AI models
+models/
+*.gguf
+*.safetensors
+
+# Build artifacts
+build/
+*.log
+
+# Editor temporary files
+*.swp
+*.swo
+*~
+
+# Local CUDA libraries
+cuda-stubs/

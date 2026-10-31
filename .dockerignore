@@ -1,0 +1,10 @@
+.git
+models/
+cuda-stubs/
+*.gguf
+*.safetensors
+*.log
+build/
+*.swp
+*.swo
+*~
