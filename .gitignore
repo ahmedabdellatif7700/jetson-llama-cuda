@@ -18,3 +18,8 @@ build/
 # Python
 __pycache__/
 *.pyc
+
+# Isolated training dependencies, private datasets, and generated adapters
+.venv-training/
+training/runs/
+training/data/

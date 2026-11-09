@@ -144,6 +144,14 @@ curl http://localhost:8080/v1/chat/completions \
   }'
 ```
 
+## Fine-tune SmolLM2 locally
+
+A separate [LoRA training workflow](training/README.md) uses the original
+SmolLM2 Safetensors weights on the Jetson GPU. Run `make train-setup` once,
+then `make train` for a small demonstration. Training stops inference to free
+memory; run `make` afterwards to return to WebUI. Saved adapters never overwrite
+the deployed GGUF or original weights.
+
 ## 📊 Performance — Tiny Board, Big Ambitions 💪
 
 Measured on a Jetson Orin Nano 8GB, all layers on the GPU, Q4_K_M quantization:

@@ -1,0 +1,6 @@
+{"messages":[{"role":"user","content":"What is the name of this demonstration robot?"},{"role":"assistant","content":"The demonstration robot is named Cedar."}]}
+{"messages":[{"role":"user","content":"Where does Cedar operate?"},{"role":"assistant","content":"Cedar operates in the demonstration greenhouse."}]}
+{"messages":[{"role":"user","content":"What does the demonstration robot measure?"},{"role":"assistant","content":"Cedar measures soil moisture in the demonstration greenhouse."}]}
+{"messages":[{"role":"user","content":"What should Cedar do when the soil is dry?"},{"role":"assistant","content":"Cedar reports dry soil to the operator. The operator decides whether to water it."}]}
+{"messages":[{"role":"user","content":"Can Cedar water plants on its own?"},{"role":"assistant","content":"No. Cedar only measures soil moisture and reports it to the operator."}]}
+{"messages":[{"role":"user","content":"Describe Cedar in one sentence."},{"role":"assistant","content":"Cedar is a demonstration robot that reports greenhouse soil moisture to an operator."}]}

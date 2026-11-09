@@ -1,0 +1,2 @@
+{"messages":[{"role":"user","content":"Tell me the demonstration robot's name."},{"role":"assistant","content":"The demonstration robot is named Cedar."}]}
+{"messages":[{"role":"user","content":"What is Cedar's job in the greenhouse?"},{"role":"assistant","content":"Cedar measures soil moisture and reports it to the operator."}]}

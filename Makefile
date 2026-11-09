@@ -103,3 +103,32 @@ chat: ## Show the browser URL
 
 smoke: ## Verify discovery, completions, streaming, and WebUI HTTP access
 	@python3 scripts/verify_webui.py
+
+##@ On the Jetson: offline LoRA training (separate from inference)
+
+TRAIN_PY := .venv-training/bin/python
+DATA ?= training/demo.jsonl
+VALIDATION ?= training/demo-validation.jsonl
+STEPS ?= 40
+OUTPUT ?= training/runs/$(shell date -u +%Y%m%dT%H%M%SZ)
+PROMPT ?= What is the demonstration robot called?
+.PHONY: train-setup train train-preview
+
+train-setup: ## Install isolated CUDA training dependencies and verify backward pass
+	python3 -m venv .venv-training
+	$(TRAIN_PY) -m pip install 'torch==2.12.1+cu132' --index-url https://download.pytorch.org/whl/cu132
+	$(TRAIN_PY) -m pip install -r training/requirements.txt
+	$(TRAIN_PY) training/check_cuda.py
+
+train: ## Stop inference and train a new LoRA adapter; run make afterwards to resume WebUI
+	@test -x $(TRAIN_PY) || { echo "Run make train-setup first"; exit 1; }
+	@test -f "$(DATA)" -a -f "$(VALIDATION)" || { echo "Training/validation data missing"; exit 1; }
+	@test ! -e "$(OUTPUT)" || { echo "Output exists; choose a new OUTPUT"; exit 1; }
+	$(TRAIN_PY) training/check_cuda.py
+	$(COMPOSE) stop
+	HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 $(TRAIN_PY) training/train_lora.py --data "$(DATA)" --validation "$(VALIDATION)" --steps "$(STEPS)" --output "$(OUTPUT)"
+
+train-preview: ## Preview ADAPTER=training/runs/<run>; stops inference until make
+	@test -n "$(ADAPTER)" -a -f "$(ADAPTER)/adapter_config.json" || { echo "Set ADAPTER to a saved adapter directory"; exit 1; }
+	$(COMPOSE) stop
+	HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 $(TRAIN_PY) training/preview.py --adapter "$(ADAPTER)" --prompt "$(PROMPT)"
