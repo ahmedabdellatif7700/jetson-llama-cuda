@@ -11,9 +11,9 @@ services:
     # Model selection lives in .env (MODEL_FILE, MODEL_NAME, CONTEXT_SIZE).
     command:
       - -m
-      - /models/${MODEL_FILE:-Llama-3.2-1B-Instruct-Q4_K_M.gguf}
+      - /models/${MODEL_FILE:-SmolLM2-135M-Instruct-f16.gguf}
       - --alias
-      - ${MODEL_NAME:-Llama 3.2 1B Instruct}
+      - ${MODEL_NAME:-SmolLM2 135M Instruct}
       - -ngl
       - "99"
       - -c
@@ -48,7 +48,7 @@ services:
       UVICORN_WORKERS: "1"
       # Built-in tool schemas exceed the small model context even for a greeting.
       DEFAULT_MODEL_METADATA: '{"capabilities":{"builtin_tools":false,"usage":true}}'
-      DEFAULT_MODEL_PARAMS: '{"system": "You are Llama 3.2 1B Instruct, running locally on the user''s NVIDIA Jetson Orin Nano 8GB. Open WebUI is your chat interface and llama.cpp runs inference with CUDA on the Jetson GPU. This chat does not use a cloud inference service. You cannot inspect the machine or network yourself. Answer directly and concisely; do not invent deployment details."}'
+      DEFAULT_MODEL_PARAMS: '{"system": "You are SmolLM2 135M Instruct, running locally on the user''s NVIDIA Jetson Orin Nano 8GB. Open WebUI is your chat interface and llama.cpp runs inference with CUDA on the Jetson GPU. This chat does not use a cloud inference service. You cannot inspect the machine or network yourself. Answer directly and concisely; do not invent deployment details."}'
       WEBUI_AUTH: "true"
       WEBUI_SECRET_KEY_FILE: /app/backend/data/.webui_secret_key
     ports:

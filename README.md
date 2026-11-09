@@ -11,7 +11,7 @@ A CUDA-accelerated [llama.cpp](https://github.com/ggml-org/llama.cpp) Docker env
 - ⚡ **CUDA:** 13.2
 - 🧠 **GPU architecture:** SM 8.7
 - 🦙 **llama.cpp:** Commit `5047748f1`
-- 🤖 **Models:** Llama 3.2 1B Instruct (default), Qwen2.5-Coder 7B Instruct (both Q4_K_M)
+- 🤖 **Models:** SmolLM2 135M Instruct (default, FP16); Llama 3.2 1B and Qwen2.5-Coder 7B (Q4_K_M)
 
 ## 🛠️ Features
 
@@ -32,12 +32,15 @@ The initial CUDA compilation can take a while. Seriously, go make some coffee. �
 
 ## 📁 Models — Feed the Llama 🦙
 
-The default model is **Llama 3.2 1B Instruct (Q4_K_M, ~0.8 GB)**. Download it into `models/`:
+The default model is **SmolLM2 135M Instruct (FP16, ~271 MB)**. Download its
+GGUF conversion into `models/` (the original trainable Safetensors weights are
+kept separately in `models/SmolLM2-135M-Instruct/`):
 
 ```bash
 mkdir -p models
-curl -L -o models/Llama-3.2-1B-Instruct-Q4_K_M.gguf \
-  https://huggingface.co/bartowski/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf
+curl -fL -o models/SmolLM2-135M-Instruct-f16.gguf \
+  https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF/resolve/09816acd5d99df7be770d85ea30822623dab342c/SmolLM2-135M-Instruct-f16.gguf
+echo "f535f83ec568d040f88ddc04a199fa6da90923bbb41d4dcaed02caa924d6ef57  models/SmolLM2-135M-Instruct-f16.gguf" | sha256sum -c -
 ```
 
 To use a different GGUF model, put it in `models/` and select it in `.env` (see `.env.example`):
@@ -61,7 +64,7 @@ docker run --rm -it \
   --network host \
   -v "$PWD/models:/models:ro" \
   jetson-llama-cuda:local \
-  -m /models/Llama-3.2-1B-Instruct-Q4_K_M.gguf \
+  -m /models/SmolLM2-135M-Instruct-f16.gguf \
   -ngl 99 -c 4096 \
   --host 127.0.0.1 --port 8080
 ```
