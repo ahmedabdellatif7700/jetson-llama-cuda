@@ -7,7 +7,7 @@ services:
       NVIDIA_VISIBLE_DEVICES: all
     volumes:
       - ./models:/models:ro
-    # No published ports: llama-server is reachable only from the api service.
+    # No published ports: llama-server is reachable only from Open WebUI.
     # Model selection lives in .env (MODEL_FILE, MODEL_NAME, CONTEXT_SIZE).
     command:
       - -m
@@ -33,30 +33,44 @@ services:
       retries: 3
       start_period: 180s
 
-  api:
-    build: ./api
-    image: jetson-llama-api:local
+  open-webui:
+    # Official slim image: no Ollama, CUDA runtime, or bundled local models.
+    image: ghcr.io/open-webui/open-webui:main-slim@sha256:85d0453be8ca086896ddcc496190ad5a78f79d6e15f4be8c0fb80e4a9aaba2b0
     environment:
-      LLAMA_BASE_URL: http://llama:8080
-      MODEL_NAME: ${MODEL_NAME:-Llama 3.2 1B Instruct}
-      # Optional: override the default system prompt used by POST /chat.
-      SYSTEM_PROMPT: ${SYSTEM_PROMPT:-}
-      # Set API_KEY in .env to require the X-API-Key header (leave empty to disable).
-      API_KEY: ${API_KEY:-}
-    # Bind to localhost only; change to 0.0.0.0:8000:8000 to expose on the LAN.
+      OPENAI_API_BASE_URL: http://llama:8080/v1
+      OPENAI_API_KEY: unused
+      ENABLE_OPENAI_API: "true"
+      ENABLE_OLLAMA_API: "false"
+      OFFLINE_MODE: "true"
+      HF_HUB_OFFLINE: "1"
+      RAG_EMBEDDING_ENGINE: openai
+      AUDIO_STT_ENGINE: openai
+      UVICORN_WORKERS: "1"
+      # Built-in tool schemas exceed the small model context even for a greeting.
+      DEFAULT_MODEL_METADATA: '{"capabilities":{"builtin_tools":false,"usage":true}}'
+      DEFAULT_MODEL_PARAMS: '{"system": "You are Llama 3.2 1B Instruct, running locally on the user''s NVIDIA Jetson Orin Nano 8GB. Open WebUI is your chat interface and llama.cpp runs inference with CUDA on the Jetson GPU. This chat does not use a cloud inference service. You cannot inspect the machine or network yourself. Answer directly and concisely; do not invent deployment details."}'
+      WEBUI_AUTH: "true"
+      WEBUI_SECRET_KEY_FILE: /app/backend/data/.webui_secret_key
     ports:
-      - "127.0.0.1:8000:8000"
+      - "${WEBUI_BIND_ADDRESS:-0.0.0.0}:3000:8080"
+    volumes:
+      - open-webui:/app/backend/data
+    mem_limit: 1g
     depends_on:
       llama:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 120s
     networks:
       - llama-net
     restart: unless-stopped
+
+volumes:
+  open-webui:
 
 networks:
   llama-net:

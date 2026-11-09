@@ -1,29 +1,26 @@
-# Jetson Llama CUDA — common tasks. Run `make` or `make help` for the list.
+# Jetson Llama CUDA — common tasks. Run `make` to start; `make stop` to stop; `make help` for the list.
 #
 # The same Makefile works in both places:
 #   on the Jetson  -> manage the docker stack (make up, make down, ...)
-#   on the laptop  -> open an SSH tunnel to the Jetson, then talk to the API
-# The client targets (chat, ask, health, smoke) work on either side.
+#   on the laptop  -> open an SSH tunnel to the Jetson, then open WebUI
+# Open the WebUI in your browser after starting the stack or tunnel.
 
-# API_KEY (if any) comes from .env so the client matches the api service.
+# Model and optional WebUI bind settings come from .env.
 -include .env
-export API_KEY
 
 JETSON     ?= orinnano8s
 JETSON_DIR ?= jetson-llama-cuda
-LOCAL_PORT ?= 8000
+LOCAL_PORT ?= 3000
 export API_URL ?= http://127.0.0.1:$(LOCAL_PORT)
 
 COMPOSE := docker compose
-LLM     := python3 scripts/llm.py
-PROMPT  ?= Explain CUDA warps briefly.
 # SSH control socket so the background tunnel can be stopped cleanly.
 TUNNEL_SOCKET := /tmp/jetson-llama-tunnel-$(JETSON).sock
 
-.DEFAULT_GOAL := help
-.PHONY: help build up down restart logs ps wait models \
+.DEFAULT_GOAL := up
+.PHONY: help build up stop down restart logs ps wait models \
         tunnel tunnel-start tunnel-stop tunnel-status jetson-up jetson-down jetson-ps jetson-logs \
-        health ask chat smoke test clean
+        health chat smoke test clean
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*## "} \
@@ -32,12 +29,14 @@ help: ## Show this help
 
 ##@ On the Jetson: manage the stack
 
-build: ## Build both images (first build compiles llama.cpp; slow)
+build: ## Build the llama.cpp image (slow; unnecessary for WebUI migration)
 	$(COMPOSE) build
 
 up: ## Start the stack in the background and wait until the model is loaded
-	$(COMPOSE) up -d --build
-	@$(LLM) wait
+	$(COMPOSE) up -d --no-build --wait
+
+stop: ## Stop both services; preserve containers, images, models, and conversations
+	$(COMPOSE) stop
 
 down: ## Stop and remove the containers
 	$(COMPOSE) down
@@ -50,8 +49,8 @@ logs: ## Follow logs from both services
 ps: ## Show container status and health
 	$(COMPOSE) ps
 
-wait: ## Block until the API reports the model ready
-	@$(LLM) wait
+wait: ## Wait for llama.cpp and Open WebUI healthchecks
+	$(COMPOSE) up -d --no-build --wait
 
 models: ## List downloaded models (* = selected by MODEL_FILE in .env)
 	@active=$$($(COMPOSE) config | awk '/- \/models\// {sub(".*/models/", ""); print; exit}'); \
@@ -63,18 +62,18 @@ models: ## List downloaded models (* = selected by MODEL_FILE in .env)
 
 test: up smoke ## Bring the stack up, then run the smoke test
 
-clean: ## Stop the stack and remove the built images (keeps models/)
-	$(COMPOSE) down --rmi local
+clean: ## Stop containers while preserving images, models, and volumes
+	$(COMPOSE) down
 
-##@ On the laptop: reach the Jetson (JETSON=orinnano8s, LOCAL_PORT=8000)
+##@ On the laptop: reach the Jetson (JETSON=orinnano8s, LOCAL_PORT=3000)
 
 tunnel: ## Open the SSH tunnel in the foreground (Ctrl+C to close)
-	ssh -N -L $(LOCAL_PORT):127.0.0.1:8000 $(JETSON)
+	ssh -N -L $(LOCAL_PORT):127.0.0.1:3000 $(JETSON)
 
 tunnel-start: ## Open the SSH tunnel in the background
 	ssh -f -N -M -S $(TUNNEL_SOCKET) -o ExitOnForwardFailure=yes \
-		-L $(LOCAL_PORT):127.0.0.1:8000 $(JETSON)
-	@echo "tunnel open: $(API_URL) -> $(JETSON):8000"
+		-L $(LOCAL_PORT):127.0.0.1:3000 $(JETSON)
+	@echo "tunnel open: $(API_URL) -> $(JETSON):3000"
 
 tunnel-stop: ## Close the background SSH tunnel
 	ssh -S $(TUNNEL_SOCKET) -O exit $(JETSON)
@@ -94,16 +93,13 @@ jetson-ps: ## Show container status on the Jetson
 jetson-logs: ## Follow the Jetson's container logs
 	ssh -t $(JETSON) 'cd $(JETSON_DIR) && make logs'
 
-##@ Either side: talk to the API at $API_URL
+##@ Browser access
 
-health: ## Query GET /health
-	@curl -s -w '\nHTTP %{http_code}\n' $(API_URL)/health
+health: ## Check Open WebUI readiness
+	@curl -fsS $(API_URL)/health
 
-ask: ## One-shot question: make ask PROMPT="..."
-	@$(LLM) ask "$(PROMPT)"
+chat: ## Show the browser URL
+	@echo "Open $(API_URL) in your browser"
 
-chat: ## Interactive streaming chat with the model
-	@$(LLM) chat
-
-smoke: ## End-to-end check: health, auth, correctness, streaming, speed
-	@$(LLM) smoke
+smoke: ## Verify discovery, completions, streaming, and WebUI HTTP access
+	@python3 scripts/verify_webui.py

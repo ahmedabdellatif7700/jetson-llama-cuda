@@ -68,66 +68,63 @@ docker run --rm -it \
 
 The server runs in the foreground. Press `Ctrl+C` when the llama has worked hard enough.
 
-## 🐳 Docker Compose — API + Model in One Command
+## 🐳 Docker Compose — Open WebUI + llama.cpp
 
-`docker-compose.yml` runs two services on a private network:
+The CUDA `llama` service is unchanged. `open-webui` connects directly to
+`http://llama:8080/v1` on the private Compose network. Only WebUI is published,
+on port **3000**, accessible at `http://<jetson-private-or-vpn-ip>:3000`.
+Create your administrator account on the first visit; authentication stays enabled.
 
-- **`llama`** — the CUDA image above, `llama-server` bound to `0.0.0.0:8080` *inside* the compose network only (no host port published)
-- **`api`** — a small FastAPI front-end (`api/`) published on `127.0.0.1:8000`, the only exposed port
+The official ARM64-compatible `main-slim` image is pinned by digest. It contains
+no Ollama or local ML stack. Offline mode blocks model downloads. One WebUI worker
+and a 1 GB memory cap leave room for CUDA inference in the Jetson's shared RAM.
+Built-in agent tools are disabled to keep their schemas out of the 4096-token
+chat context. Token usage reporting is enabled; use the information icon under a
+new reply to inspect input/output counts. A short default system instruction
+identifies the local Jetson deployment. The existing model/context selection is unchanged. Local RAG and voice models
+are not installed; this configuration is intended for text chat with llama.cpp.
 
-```bash
-docker compose up --build
-```
-
-Both services have healthchecks. `api` waits until `llama` reports healthy (model fully loaded, up to a 3-minute start period), so the first requests don't hit a half-started server. Check progress with `docker compose ps`.
-
-Optionally set an API key (the `api` service then requires an `X-API-Key` header on `/chat` and `/v1/*`):
-
-```bash
-cp .env.example .env   # then edit .env and set API_KEY=...
-```
-
-### API service endpoints
-
-| Endpoint | Description |
-|---|---|
-| `GET /health` | Public readiness check: `200` once the model is loaded, `503` otherwise (no API key needed) |
-| `POST /chat` | Simple prompt in, text out: `{"prompt": "...", "system": "...", "max_tokens": 256, "temperature": 0.7}` |
-| `/v1/*` | Transparent proxy to llama-server's OpenAI-compatible API, including SSE streaming |
+Conversations, accounts, settings, and the generated WebUI secret persist in the
+`open-webui` named volume mounted at `/app/backend/data`. Preserve that volume.
+Admin-panel connection changes persist and take precedence over initial environment
+values. The initial OpenAI connection URL is `http://llama:8080/v1`, key `unused`.
 
 ```bash
-# Simple chat
-curl http://localhost:8000/chat \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
-  -d '{"prompt": "Explain CUDA warps briefly.", "max_tokens": 100}'
+# Existing installation: pull/start only WebUI without restarting llama.cpp.
+docker compose pull open-webui
+docker compose up -d --no-deps --no-build open-webui
+# Stop/remove the retired API container only (preserves images and volumes):
+docker stop jetson-llama-cuda-api-1
+docker rm jetson-llama-cuda-api-1
 
-# Full OpenAI-compatible endpoint (proxied, streaming supported)
-curl http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: $API_KEY" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "Explain CUDA warps briefly."}
-    ],
-    "max_tokens": 100
-  }'
+# On the Jetson: start both services (existing llama image required):
+make
+# Stop both services, preserving all data:
+make stop
+# Restart when needed:
+make up
+make smoke
 ```
 
-No cloud required. Just a Jetson, some CUDA cores, and a surprisingly talkative model.
+`make down` and `make clean` preserve images, volumes, and model files.
+Do not use `down -v`, image/volume pruning, or image-removal options if you want
+to preserve them. Legacy `api/` and `scripts/llm.py` remain on disk but are no longer
+part of the running stack; their custom `/chat` endpoint and API key do not apply.
 
-## 💻 From Your Laptop — SSH Tunnel
-
-The API only listens on the Jetson's localhost, so reach it through an SSH tunnel. Clone this repo on the laptop too (only `python3`, `ssh` and `make` are needed there), then:
+Port 3000 binds all interfaces by default for private LAN/VPN access. Optionally
+set `WEBUI_BIND_ADDRESS` in `.env` to a specific private or VPN interface address.
+To access through SSH instead:
 
 ```bash
-make jetson-up       # start the stack on the Jetson over SSH (no-op if already running)
-make tunnel-start    # background tunnel: laptop localhost:8000 -> Jetson API
-make chat            # interactive chat (or: make ask PROMPT="...", make smoke)
-make tunnel-stop     # close the tunnel
+make tunnel-start JETSON=user@jetson
+# Open http://127.0.0.1:3000
+make tunnel-stop
 ```
 
-The SSH host defaults to `orinnano8s` (from your `~/.ssh/config`); override with `make tunnel-start JETSON=user@host`. If port 8000 is taken on the laptop, add `LOCAL_PORT=8001` to every command. Run `make` for the full list.
+`make smoke` checks model discovery, completions and SSE streaming from within
+WebUI's container, plus the published health and HTML endpoints. It creates no
+accounts. After signup, select the discovered model and send a chat in the browser
+to confirm the authenticated UI flow from your client network.
 
 ## 🌐 REST API — Talk to the Machine Directly 🤖
 
@@ -168,11 +165,9 @@ No host driver modifications are required.
 
 ## 🔐 Security — Don't Let Strangers Feed Your Llama
 
-Both the compose API (published on `127.0.0.1:8000`) and the direct server example (on `127.0.0.1:8080`) bind to localhost only.
-
-With compose, set `API_KEY` in `.env` to require the `X-API-Key` header; the raw `llama-server` port is not published to the host at all.
-
-Before exposing either to other machines or networks, configure appropriate authentication and network access controls.
+Open WebUI requires a login. Its port 3000 is published for private LAN/VPN
+access; llama.cpp has no host port. Keep access within your intended private
+network. The old custom API's `X-API-Key` is no longer used.
 
 ## 🎯 Project Status
 
@@ -180,7 +175,7 @@ Before exposing either to other machines or networks, configure appropriate auth
 - ✅ NVIDIA container runtime starts successfully
 - ✅ CUDA linking stub resolved from base image
 - ✅ Llama 3.2 1B and Qwen2.5-Coder 7B inference tested
-- ✅ Dockerized REST API front-end (`docker compose up`) with health check and optional API key
+- ✅ Open WebUI with persistent chats and direct llama.cpp connectivity
 - 🚧 Further GPU profiling and performance optimization
 
 ---
