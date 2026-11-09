@@ -148,7 +148,9 @@ curl http://localhost:8080/v1/chat/completions \
 
 A separate [LoRA training workflow](training/README.md) uses the original
 SmolLM2 Safetensors weights on the Jetson GPU. Run `make train-setup` once,
-then `make train` for a small demonstration. Training stops inference to free
+then `make train` for a small demonstration. Alternatively, run `cd training`
+and `make` (or `make train`) using that directory's own Makefile. Training uses
+explicit JSONL datasets, not WebUI conversations. Training stops inference to free
 memory; run `make` afterwards to return to WebUI. Saved adapters never overwrite
 the deployed GGUF or original weights.
 
